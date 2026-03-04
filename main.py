@@ -1,4 +1,4 @@
-"""
+ """
 Telegram Bot - Agent IA Architecte MRR
 Propulsé par OpenRouter (gratuit)
 Version Railway — lit les clés depuis les variables d'environnement
@@ -26,7 +26,7 @@ TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 OPENROUTER_API_KEY = os.environ["OPENROUTER_API_KEY"]
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "google/gemini-2.0-flash-exp:free"  # Gratuit sur OpenRouter
+MODEL = "google/gemini-2.0-flash:free"  # Gratuit sur OpenRouter
 
 # ─────────────────────────────────────────────
 # PROMPT SYSTÈME
@@ -244,5 +244,3 @@ def main():
 
 if __name__ == "__main__":
     main()
- 
-
