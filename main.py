@@ -1,6 +1,6 @@
 """
 Telegram Bot - Agent IA Architecte MRR
-Propulsé par Google Gemini (gratuit)
+Propulsé par OpenRouter (gratuit)
 Version Railway — lit les clés depuis les variables d'environnement
 """
 
@@ -23,12 +23,10 @@ from telegram.ext import (
 # CONFIGURATION — clés lues depuis Railway
 # ─────────────────────────────────────────────
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+OPENROUTER_API_KEY = os.environ["OPENROUTER_API_KEY"]
 
-GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY
-)
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+MODEL = "google/gemini-2.0-flash-exp:free"  # Gratuit sur OpenRouter
 
 # ─────────────────────────────────────────────
 # PROMPT SYSTÈME
@@ -85,49 +83,57 @@ def get_history(user_id: int) -> list[dict]:
 
 def add_message(user_id: int, role: str, text: str):
     history = get_history(user_id)
-    gemini_role = "model" if role == "assistant" else "user"
-    history.append({"role": gemini_role, "parts": [{"text": text}]})
+    history.append({"role": role, "content": text})
     if len(history) > MAX_HISTORY:
         user_conversations[user_id] = history[-MAX_HISTORY:]
 
 
 # ─────────────────────────────────────────────
-# APPEL GEMINI
+# APPEL OPENROUTER
 # ─────────────────────────────────────────────
-def call_gemini(user_id: int, retries: int = 3) -> str:
+def call_ai(user_id: int, retries: int = 3) -> str:
     history = get_history(user_id)
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
+
     payload = {
-        "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
-        "contents": history,
-        "generationConfig": {"maxOutputTokens": 2048, "temperature": 0.7},
+        "model": MODEL,
+        "messages": messages,
+        "max_tokens": 2048,
+        "temperature": 0.7,
     }
+
     data = json.dumps(payload).encode("utf-8")
 
     for attempt in range(retries):
         req = urllib.request.Request(
-            GEMINI_URL,
+            OPENROUTER_URL,
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "https://mrr-bot.railway.app",
+                "X-Title": "MRR Architect Bot",
+            },
             method="POST",
         )
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
-                return result["candidates"][0]["content"]["parts"][0]["text"]
+                return result["choices"][0]["message"]["content"]
         except urllib.error.HTTPError as e:
             body = e.read().decode()
             if e.code == 429:
-                wait = 15 * (attempt + 1)
+                wait = 20 * (attempt + 1)
                 logger.warning(f"429 rate limit, attente {wait}s (tentative {attempt+1}/{retries})")
                 time.sleep(wait)
                 continue
-            logger.error(f"Gemini HTTP error {e.code}: {body}")
-            return f"❌ Erreur Gemini {e.code} : {body}"
+            logger.error(f"OpenRouter HTTP error {e.code}: {body}")
+            return f"❌ Erreur {e.code} : {body}"
         except Exception as e:
-            logger.error(f"Erreur Gemini: {e}")
+            logger.error(f"Erreur OpenRouter: {e}")
             return f"❌ Erreur : {str(e)}"
 
-    return "⏳ Gemini est surchargé en ce moment, réessaie dans une minute !"
+    return "⏳ Le service est surchargé, réessaie dans une minute !"
 
 
 # ─────────────────────────────────────────────
@@ -155,7 +161,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     await update.message.reply_text(
         f"👋 Bonjour {user.first_name} !\n\n"
-        "🤖 Je suis ton Architecte IA MRR propulsé par Gemini.\n"
+        "🤖 Je suis ton Architecte IA MRR propulsé par OpenRouter.\n"
         "Je t'aide à construire des systèmes SaaS autonomes qui génèrent 1000€/mois+\n\n"
         "Commandes :\n"
         "/architecture — Système multi-agents complet\n"
@@ -177,7 +183,7 @@ async def quick_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE, prompt: 
     user_id = update.effective_user.id
     await update.message.reply_text("⏳ Génération en cours...")
     add_message(user_id, "user", prompt)
-    response = call_gemini(user_id)
+    response = call_ai(user_id)
     add_message(user_id, "assistant", response)
     for chunk in split_message(response):
         await update.message.reply_text(chunk)
@@ -213,7 +219,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text
     await update.message.reply_text("⏳ Analyse en cours...")
     add_message(user_id, "user", user_text)
-    response = call_gemini(user_id)
+    response = call_ai(user_id)
     add_message(user_id, "assistant", response)
     for chunk in split_message(response):
         await update.message.reply_text(chunk)
@@ -232,9 +238,11 @@ def main():
     app.add_handler(CommandHandler("boucle", cmd_boucle))
     app.add_handler(CommandHandler("strategie", cmd_strategie))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    logger.info("🤖 Bot MRR (Gemini) démarré...")
+    logger.info("🤖 Bot MRR (OpenRouter) démarré...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
     main()
+ 
+
