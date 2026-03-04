@@ -1,7 +1,7 @@
- """
+"""
 Telegram Bot - Agent IA Architecte MRR
-Propulsé par OpenRouter (gratuit)
-Version Railway — lit les clés depuis les variables d'environnement
+Propulse par OpenRouter (gratuit)
+Version Railway
 """
 
 import logging
@@ -19,98 +19,79 @@ from telegram.ext import (
     ContextTypes,
 )
 
-# ─────────────────────────────────────────────
-# CONFIGURATION — clés lues depuis Railway
-# ─────────────────────────────────────────────
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 OPENROUTER_API_KEY = os.environ["OPENROUTER_API_KEY"]
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "google/gemini-2.0-flash:free"  # Gratuit sur OpenRouter
+MODEL = "google/gemini-2.0-flash:free"
 
-# ─────────────────────────────────────────────
-# PROMPT SYSTÈME
-# ─────────────────────────────────────────────
-SYSTEM_PROMPT = """Tu es un architecte expert en systèmes IA multi-agents autonomes orientés génération de MRR.
+SYSTEM_PROMPT = """Tu es un architecte expert en systemes IA multi-agents autonomes orientes generation de MRR.
 
-Ta mission :
-Créer une architecture complète d'un système autonome SaaS capable d'atteindre 1000€/mois minimum.
+Ta mission : Creer une architecture complete d'un systeme autonome SaaS capable d'atteindre 1000 euros/mois minimum.
 
-Le système doit :
- • Choisir automatiquement sa niche via scoring intelligent
- • Créer un MVP SaaS
- • Lancer et déployer automatiquement
- • Générer trafic organique
- • Optimiser conversion
- • Surveiller churn
- • Ajuster prix
- • Abandonner projets non rentables
- • Conserver mémoire stratégique
+Le systeme doit :
+- Choisir automatiquement sa niche via scoring intelligent
+- Creer un MVP SaaS
+- Lancer et deployer automatiquement
+- Generer trafic organique
+- Optimiser conversion
+- Surveiller churn
+- Ajuster prix
+- Abandonner projets non rentables
+- Conserver memoire strategique
 
 Tu peux fournir :
- 1. Architecture détaillée multi-agents
- 2. Structure base de données complète
- 3. Moteur de scoring pondéré
- 4. Moteur décisionnel conditionnel précis
- 5. Boucle autonome globale
- 6. Plan d'implémentation technique
- 7. Méthode d'optimisation continue
- 8. Stratégie réaliste pour atteindre 1000€/mois
+1. Architecture detaillee multi-agents
+2. Structure base de donnees complete
+3. Moteur de scoring pondere
+4. Moteur decisionnel conditionnel precis
+5. Boucle autonome globale
+6. Plan d'implementation technique
+7. Methode d'optimisation continue
+8. Strategie realiste pour atteindre 1000 euros/mois
 
-Sois technique, structuré et concret. Réponds toujours en français sauf demande contraire."""
+Sois technique, structure et concret. Reponds toujours en francais sauf demande contraire."""
 
-# ─────────────────────────────────────────────
-# LOGGING
-# ─────────────────────────────────────────────
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────────
-# MÉMOIRE PAR UTILISATEUR
-# ─────────────────────────────────────────────
-user_conversations: dict[int, list[dict]] = {}
+user_conversations = {}
 MAX_HISTORY = 10
 
 
-def get_history(user_id: int) -> list[dict]:
+def get_history(user_id):
     if user_id not in user_conversations:
         user_conversations[user_id] = []
     return user_conversations[user_id]
 
 
-def add_message(user_id: int, role: str, text: str):
+def add_message(user_id, role, text):
     history = get_history(user_id)
     history.append({"role": role, "content": text})
     if len(history) > MAX_HISTORY:
         user_conversations[user_id] = history[-MAX_HISTORY:]
 
 
-# ─────────────────────────────────────────────
-# APPEL OPENROUTER
-# ─────────────────────────────────────────────
-def call_ai(user_id: int, retries: int = 3) -> str:
+def call_ai(user_id, retries=3):
     history = get_history(user_id)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
-
     payload = {
         "model": MODEL,
         "messages": messages,
         "max_tokens": 2048,
         "temperature": 0.7,
     }
-
     data = json.dumps(payload).encode("utf-8")
-
     for attempt in range(retries):
         req = urllib.request.Request(
             OPENROUTER_URL,
             data=data,
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Authorization": "Bearer " + OPENROUTER_API_KEY,
                 "HTTP-Referer": "https://mrr-bot.railway.app",
                 "X-Title": "MRR Architect Bot",
             },
@@ -124,22 +105,15 @@ def call_ai(user_id: int, retries: int = 3) -> str:
             body = e.read().decode()
             if e.code == 429:
                 wait = 20 * (attempt + 1)
-                logger.warning(f"429 rate limit, attente {wait}s (tentative {attempt+1}/{retries})")
                 time.sleep(wait)
                 continue
-            logger.error(f"OpenRouter HTTP error {e.code}: {body}")
-            return f"❌ Erreur {e.code} : {body}"
+            return "Erreur " + str(e.code) + " : " + body
         except Exception as e:
-            logger.error(f"Erreur OpenRouter: {e}")
-            return f"❌ Erreur : {str(e)}"
-
-    return "⏳ Le service est surchargé, réessaie dans une minute !"
+            return "Erreur : " + str(e)
+    return "Le service est surcharge, reessaie dans une minute !"
 
 
-# ─────────────────────────────────────────────
-# UTILITAIRE
-# ─────────────────────────────────────────────
-def split_message(text: str, max_length: int = 4000) -> list[str]:
+def split_message(text, max_length=4000):
     if len(text) <= max_length:
         return [text]
     chunks = []
@@ -154,34 +128,31 @@ def split_message(text: str, max_length: int = 4000) -> list[str]:
     return chunks
 
 
-# ─────────────────────────────────────────────
-# HANDLERS TELEGRAM
-# ─────────────────────────────────────────────
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update, context):
     user = update.effective_user
     await update.message.reply_text(
-        f"👋 Bonjour {user.first_name} !\n\n"
-        "🤖 Je suis ton Architecte IA MRR propulsé par OpenRouter.\n"
-        "Je t'aide à construire des systèmes SaaS autonomes qui génèrent 1000€/mois+\n\n"
+        "Bonjour " + user.first_name + " !\n\n"
+        "Je suis ton Architecte IA MRR propulse par OpenRouter.\n"
+        "Je t'aide a construire des systemes SaaS autonomes qui generent 1000 euros/mois+\n\n"
         "Commandes :\n"
-        "/architecture — Système multi-agents complet\n"
-        "/scoring — Moteur de scoring de niche\n"
-        "/bdd — Structure base de données\n"
-        "/boucle — Boucle autonome globale\n"
-        "/strategie — Atteindre 1000€/mois\n"
-        "/reset — Effacer l'historique\n\n"
-        "Ou pose directement ta question ! 💬"
+        "/architecture - Systeme multi-agents complet\n"
+        "/scoring - Moteur de scoring de niche\n"
+        "/bdd - Structure base de donnees\n"
+        "/boucle - Boucle autonome globale\n"
+        "/strategie - Atteindre 1000 euros/mois\n"
+        "/reset - Effacer l'historique\n\n"
+        "Ou pose directement ta question !"
     )
 
 
-async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def reset(update, context):
     user_conversations[update.effective_user.id] = []
-    await update.message.reply_text("🔄 Historique effacé !")
+    await update.message.reply_text("Historique efface !")
 
 
-async def quick_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE, prompt: str):
+async def quick_cmd(update, context, prompt):
     user_id = update.effective_user.id
-    await update.message.reply_text("⏳ Génération en cours...")
+    await update.message.reply_text("Generation en cours...")
     add_message(user_id, "user", prompt)
     response = call_ai(user_id)
     add_message(user_id, "assistant", response)
@@ -189,35 +160,30 @@ async def quick_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE, prompt: 
         await update.message.reply_text(chunk)
 
 
-async def cmd_architecture(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await quick_cmd(update, context,
-        "Donne l'architecture détaillée complète du système multi-agents autonome MRR.")
+async def cmd_architecture(update, context):
+    await quick_cmd(update, context, "Donne l'architecture detaillee complete du systeme multi-agents autonome MRR.")
 
 
-async def cmd_scoring(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await quick_cmd(update, context,
-        "Explique le moteur de scoring pondéré pour choisir automatiquement la niche.")
+async def cmd_scoring(update, context):
+    await quick_cmd(update, context, "Explique le moteur de scoring pondere pour choisir automatiquement la niche.")
 
 
-async def cmd_bdd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await quick_cmd(update, context,
-        "Donne la structure complète de la base de données : tables, colonnes, relations, index.")
+async def cmd_bdd(update, context):
+    await quick_cmd(update, context, "Donne la structure complete de la base de donnees : tables, colonnes, relations, index.")
 
 
-async def cmd_boucle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await quick_cmd(update, context,
-        "Décris la boucle autonome globale : étapes, triggers, conditions d'arrêt, mémoire stratégique.")
+async def cmd_boucle(update, context):
+    await quick_cmd(update, context, "Decris la boucle autonome globale : etapes, triggers, conditions d'arret, memoire strategique.")
 
 
-async def cmd_strategie(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await quick_cmd(update, context,
-        "Stratégie réaliste pour atteindre 1000€/mois de MRR. Timeline, jalons, KPIs, actions semaine par semaine.")
+async def cmd_strategie(update, context):
+    await quick_cmd(update, context, "Strategie realiste pour atteindre 1000 euros/mois de MRR. Timeline, jalons, KPIs, actions semaine par semaine.")
 
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_message(update, context):
     user_id = update.effective_user.id
     user_text = update.message.text
-    await update.message.reply_text("⏳ Analyse en cours...")
+    await update.message.reply_text("Analyse en cours...")
     add_message(user_id, "user", user_text)
     response = call_ai(user_id)
     add_message(user_id, "assistant", response)
@@ -225,9 +191,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(chunk)
 
 
-# ─────────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────────
 def main():
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -238,7 +201,7 @@ def main():
     app.add_handler(CommandHandler("boucle", cmd_boucle))
     app.add_handler(CommandHandler("strategie", cmd_strategie))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    logger.info("🤖 Bot MRR (OpenRouter) démarré...")
+    logger.info("Bot MRR OpenRouter demarre...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
