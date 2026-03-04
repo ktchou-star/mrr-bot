@@ -7,6 +7,7 @@ Version Railway — lit les clés depuis les variables d'environnement
 import logging
 import os
 import json
+import time
 import urllib.request
 import urllib.error
 from telegram import Update
@@ -93,7 +94,7 @@ def add_message(user_id: int, role: str, text: str):
 # ─────────────────────────────────────────────
 # APPEL GEMINI
 # ─────────────────────────────────────────────
-def call_gemini(user_id: int) -> str:
+def call_gemini(user_id: int, retries: int = 3) -> str:
     history = get_history(user_id)
     payload = {
         "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
@@ -101,23 +102,32 @@ def call_gemini(user_id: int) -> str:
         "generationConfig": {"maxOutputTokens": 2048, "temperature": 0.7},
     }
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        GEMINI_URL,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-            return result["candidates"][0]["content"]["parts"][0]["text"]
-    except urllib.error.HTTPError as e:
-        body = e.read().decode()
-        logger.error(f"Gemini HTTP error {e.code}: {body}")
-        return f"❌ Erreur Gemini {e.code} : {body}"
-    except Exception as e:
-        logger.error(f"Erreur Gemini: {e}")
-        return f"❌ Erreur : {str(e)}"
+
+    for attempt in range(retries):
+        req = urllib.request.Request(
+            GEMINI_URL,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                return result["candidates"][0]["content"]["parts"][0]["text"]
+        except urllib.error.HTTPError as e:
+            body = e.read().decode()
+            if e.code == 429:
+                wait = 15 * (attempt + 1)
+                logger.warning(f"429 rate limit, attente {wait}s (tentative {attempt+1}/{retries})")
+                time.sleep(wait)
+                continue
+            logger.error(f"Gemini HTTP error {e.code}: {body}")
+            return f"❌ Erreur Gemini {e.code} : {body}"
+        except Exception as e:
+            logger.error(f"Erreur Gemini: {e}")
+            return f"❌ Erreur : {str(e)}"
+
+    return "⏳ Gemini est surchargé en ce moment, réessaie dans une minute !"
 
 
 # ─────────────────────────────────────────────
