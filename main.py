@@ -23,7 +23,7 @@ TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 OPENROUTER_API_KEY = os.environ["OPENROUTER_API_KEY"]
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL = "google/gemini-2.0-flash:free"
+MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 
 SYSTEM_PROMPT = """Tu es un architecte expert en systemes IA multi-agents autonomes orientes generation de MRR.
 
